@@ -17,15 +17,17 @@ class Program
     /// </summary>
     static MachineSignalDto GenerateRandomSignal()
     {
-        var statusList = new[] { "Running", "Stopped", "Idle", "Error" };
+        // 狀態改為隨機選取 Status enum 成員
         var programList = new[] { "MainProc", "AuxProc", "TestProc" };
         var subProgramList = new[] { "SubProcA", "SubProcB", "SubProcC" };
 
         var rand = new Random();
+        var statusValues = Enum.GetValues(typeof(Status));
+        var status = (Status)statusValues.GetValue(rand.Next(statusValues.Length));
         return new MachineSignalDto
         {
             MachineId = Guid.NewGuid().ToString().Substring(0, 8),
-            Status = statusList[rand.Next(statusList.Length)],
+            Status = status.ToString(),
             SignalTime = DateTime.Now,
             ProgramName = programList[rand.Next(programList.Length)],
             SubProgramName = subProgramList[rand.Next(subProgramList.Length)]
@@ -86,24 +88,33 @@ class Program
             await mqttClient.SubscribeAsync("shinmold/machine-signal/all");
             Console.WriteLine("已訂閱 shinmold/machine-signal/all");
 
-            // 亂數產生 DTO 並序列化為 JSON
-            var signal = GenerateRandomSignal();
-            var json = SerializeToJson(signal);
-
-            // 發佈訊息
-            var managedMessage = new ManagedMqttApplicationMessage
+            // 每5秒發佈一次訊息，直到按下任意鍵
+            var cts = new CancellationTokenSource();
+            var publishTask = Task.Run(async () =>
             {
-                ApplicationMessage = new MqttApplicationMessageBuilder()
-                    .WithTopic("shinmold/machine-signal/all")
-                    .WithPayload(Encoding.UTF8.GetBytes(json))
-                    .Build()
-            };
+                while (!cts.Token.IsCancellationRequested)
+                {
+                    var signal = GenerateRandomSignal();
+                    var json = SerializeToJson(signal);
 
-            await mqttClient.EnqueueAsync(managedMessage);
-            Console.WriteLine("已發佈訊息");
+                    var managedMessage = new ManagedMqttApplicationMessage
+                    {
+                        ApplicationMessage = new MqttApplicationMessageBuilder()
+                            .WithTopic("shinmold/machine-signal/all")
+                            .WithPayload(Encoding.UTF8.GetBytes(json))
+                            .Build()
+                    };
+
+                    await mqttClient.EnqueueAsync(managedMessage);
+                    Console.WriteLine($"[定時發佈] {DateTime.Now:HH:mm:ss} 已發佈訊息");
+                    await Task.Delay(5000, cts.Token);
+                }
+            });
 
             Console.WriteLine("等待訊息... 按任意鍵結束");
             Console.ReadKey();
+            cts.Cancel();
+            await publishTask;
 
             // 斷線
             await mqttClient.StopAsync();
