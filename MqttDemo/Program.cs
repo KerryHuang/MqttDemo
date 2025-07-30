@@ -101,7 +101,7 @@ class Program
             // 建立連線選項 (使用 MqttClientOptionsBuilder)
             var clientOptions = new MqttClientOptionsBuilder()
                 .WithClientId("dotnet8_demo_client")
-                .WithTcpServer("172.20.10.152", 1883) // WDMIS: 172.20.10.152, 景利  MQTT broker :192.168.1.237:1883, 鑫型  MQTT broker:   192.168.1.244:1883
+                .WithTcpServer("192.168.1.237", 1883) // WDMIS: 172.20.10.152, 景利  MQTT broker :192.168.1.237:1883, 鑫型  MQTT broker:   192.168.1.244:1883
                 .Build();
             var options = new ManagedMqttClientOptions { ClientOptions = clientOptions };
 
@@ -110,8 +110,9 @@ class Program
             Console.WriteLine("已連線到 MQTT Broker");
 
             // 訂閱主題
-            await mqttClient.SubscribeAsync("shinmold/machine-signal/all");
-            Console.WriteLine("已訂閱 shinmold/machine-signal/all");
+            var customer = "ginlee"; // shinmold, ginlee
+            await mqttClient.SubscribeAsync($"{customer}/machine-signal/all");
+            Console.WriteLine($"已訂閱 {customer}/machine-signal/all");
 
             // 每5秒發佈一次訊息，直到按下任意鍵
             var cts = new CancellationTokenSource();
@@ -128,13 +129,13 @@ class Program
                     var managedMessage = new ManagedMqttApplicationMessage
                     {
                         ApplicationMessage = new MqttApplicationMessageBuilder()
-                            .WithTopic("shinmold/machine-signal/all")
+                            .WithTopic($"{customer}/machine-signal/all")
                             .WithPayload(Encoding.UTF8.GetBytes(json))
                             .Build()
                     };
 
-                    await mqttClient.EnqueueAsync(managedMessage);
-                    Console.WriteLine($"[定時發佈] {DateTime.Now:HH:mm:ss} 已發佈多筆訊息（{signals.Count} 筆）");
+                    //await mqttClient.EnqueueAsync(managedMessage);
+                    //Console.WriteLine($"[定時發佈] {DateTime.Now:HH:mm:ss} 已發佈多筆訊息（{signals.Count} 筆）");
                     await Task.Delay(5000, cts.Token);
                 }
             });
