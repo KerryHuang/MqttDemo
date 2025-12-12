@@ -1,14 +1,16 @@
-﻿using MqttDemo;
+using MqttDemo;
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Extensions.ManagedClient;
 using System.Text;
+using System.Text.Json;
+
 /*
  * MQTTnet 5.x 已整合 Client 相關 API，無需額外引用 Options/Subscribing/Publishing 命名空間。
  * 下方 Main 函式示範 MQTT 客戶端連線、訂閱、發佈與斷線流程。
+ *
+ * 支援客戶: WDMIS, 景利(ginlee), 鑫型(shinmold)
  */
-
-using System.Text.Json;
 
 class Program
 {
@@ -28,7 +30,7 @@ class Program
         var list = new List<MachineSignalDto>();
         for (int i = 0; i < count; i++)
         {
-            var status = (Status)statusValues.GetValue(rand.Next(statusValues.Length));
+            var status = (Status)statusValues.GetValue(rand.Next(statusValues.Length))!;
             list.Add(new MachineSignalDto
             {
                 MachineId = FixedMachineIds[rand.Next(FixedMachineIds.Count)],
@@ -52,9 +54,30 @@ class Program
 
     static async Task Main(string[] args)
     {
+        // 檢查是否執行宇均三色燈測試模式
+        if (args.Contains("--towerlight") || args.Contains("-t"))
+        {
+            await TowerlightTestProgram.RunAsync();
+            return;
+        }
+
         // 建立 Managed MQTT 客戶端
         var factory = new MqttFactory();
         var mqttClient = factory.CreateManagedMqttClient();
+
+        // 註冊訊息發送事件
+        mqttClient.ApplicationMessageProcessedAsync += e =>
+        {
+            if (e.Exception == null)
+            {
+                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] 訊息發送成功: {e.ApplicationMessage?.ApplicationMessage?.Topic}");
+            }
+            else
+            {
+                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] 訊息發送失敗: {e.Exception.Message}");
+            }
+            return Task.CompletedTask;
+        };
 
         // 註冊訊息接收事件
         mqttClient.ApplicationMessageReceivedAsync += e =>
@@ -103,7 +126,7 @@ class Program
             // 建立連線選項 (使用 MqttClientOptionsBuilder)
             var clientOptions = new MqttClientOptionsBuilder()
                 .WithClientId($"mqtt-broker-{customer}")
-                .WithTcpServer("172.20.10.152", 1883) // WDMIS: 172.20.10.152, 景利  MQTT broker: 192.168.1.237:1883, 鑫型  MQTT broker:   192.168.1.244:1883
+                .WithTcpServer("172.20.10.152", 1883) // WDMIS: 172.20.10.152, 景利 MQTT broker: 192.168.1.237:1883, 鑫型 MQTT broker: 192.168.1.244:1883
                 .Build();
             var options = new ManagedMqttClientOptions { ClientOptions = clientOptions };
 
@@ -112,7 +135,6 @@ class Program
             Console.WriteLine("已連線到 MQTT Broker");
 
             // 訂閱主題
-
             await mqttClient.SubscribeAsync($"{customer}/machine-signal/all");
             Console.WriteLine($"已訂閱 {customer}/machine-signal/all");
 

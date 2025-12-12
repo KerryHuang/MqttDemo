@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "MqttDemo": {
+      "commandName": "Project",
+      "commandLineArgs": ""
+    },
+    "Towerlight (宇均三色燈)": {
+      "commandName": "Project",
+      "commandLineArgs": "--towerlight"
+    }
+  }
+}
